@@ -1,0 +1,42 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Dados e vídeos
+data/
+*.mp4
+*.avi
+*.mov
+
+# Outputs gerados
+dashboard_saude.png
+dashboard_saude.csv
+resultado_rppg.png
+runs/
+
+# Modelos pré-treinados
+*.pth
+*.ckpt
+*.pkl
+*.pickle
+
+# Preprocessed data
+PreprocessedData/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
