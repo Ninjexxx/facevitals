@@ -52,29 +52,34 @@ def capture_frames(source, duration, target_fps=30):
     if not cap.isOpened():
         raise RuntimeError(f"Nao foi possivel abrir: {source}")
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
+    nominal_fps = cap.get(cv2.CAP_PROP_FPS) or target_fps
     frames_rgb = []
-    raw_frames_bgr = []  # Para análise de emoção
+    raw_faces_bgr = []
+    timestamps = []
     face_cascade = cv2.CascadeClassifier(
         cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
     )
 
     is_webcam = isinstance(source, int)
-    max_frames = int(duration * fps) if is_webcam else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    max_frames = int(duration * nominal_fps) if is_webcam else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if max_frames <= 0:
-        max_frames = int(duration * fps)
+        max_frames = int(duration * nominal_fps)
 
-    print(f"  Capturando frames (FPS: {fps:.0f})...")
+    print(f"  Capturando frames (FPS nominal: {nominal_fps:.0f})...")
     if is_webcam:
         print(f"  Olhe para a camera por {duration}s. Pressione 'q' para parar.")
 
+    import time
+    t_start = time.perf_counter()
     frame_count = 0
     last_bbox = None
-    sample_interval = max(1, int(fps))  # Salva 1 frame/s para emoção
+    sample_interval = max(1, int(nominal_fps))
     while frame_count < max_frames:
         ret, frame = cap.read()
         if not ret:
             break
+
+        timestamps.append(time.perf_counter() - t_start)
 
         face_roi, bbox = detect_face(frame, face_cascade)
         if face_roi is not None:
@@ -82,22 +87,24 @@ def capture_frames(source, duration, target_fps=30):
             frames_rgb.append(cv2.cvtColor(face_roi, cv2.COLOR_BGR2RGB))
         elif last_bbox is not None:
             x1, y1, x2, y2 = last_bbox
-            face_roi = frame[y1:y2, x1:x2]
-            frames_rgb.append(cv2.cvtColor(cv2.resize(face_roi, (72, 72)), cv2.COLOR_BGR2RGB))
+            face_roi = cv2.resize(frame[y1:y2, x1:x2], (72, 72))
+            frames_rgb.append(cv2.cvtColor(face_roi, cv2.COLOR_BGR2RGB))
 
-        # Guarda frames para análise de emoção (1 por segundo)
         if frame_count % sample_interval == 0:
-            raw_frames_bgr.append(frame.copy())
-
-        if is_webcam:
-            display = frame.copy()
             if last_bbox:
                 x1, y1, x2, y2 = last_bbox
-                cv2.rectangle(display, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            elapsed = frame_count / fps
-            cv2.putText(display, f"Gravando: {elapsed:.1f}s / {duration}s",
+                raw_faces_bgr.append(frame[y1:y2, x1:x2].copy())
+            else:
+                raw_faces_bgr.append(frame)
+
+        if is_webcam:
+            if last_bbox:
+                x1, y1, x2, y2 = last_bbox
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            elapsed = frame_count / nominal_fps
+            cv2.putText(frame, f"Gravando: {elapsed:.1f}s / {duration}s",
                         (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            cv2.imshow("rPPG - Captura", display)
+            cv2.imshow("rPPG - Captura", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 
@@ -107,9 +114,43 @@ def capture_frames(source, duration, target_fps=30):
     if is_webcam:
         cv2.destroyAllWindows()
 
+    # Calcula FPS real e jitter para webcam
+    if is_webcam and len(timestamps) > 1:
+        total_time = timestamps[-1] - timestamps[0]
+        real_fps = (len(timestamps) - 1) / total_time if total_time > 0 else nominal_fps
+        intervals = np.diff(timestamps)
+        jitter_ms = np.std(intervals) * 1000
+        print(f"  FPS real: {real_fps:.1f} (nominal: {nominal_fps:.0f}, jitter: {jitter_ms:.1f}ms)")
+        if jitter_ms > 30:
+            print(f"  AVISO: Jitter alto ({jitter_ms:.1f}ms) - resultados podem ser menos precisos")
+        fps = real_fps
+    else:
+        fps = nominal_fps
+
     print(f"  Frames com rosto: {len(frames_rgb)}")
-    print(f"  Frames para emocao: {len(raw_frames_bgr)}")
-    return np.array(frames_rgb), fps, raw_frames_bgr
+    print(f"  Frames para emocao: {len(raw_faces_bgr)}")
+    return np.array(frames_rgb), fps, raw_faces_bgr
+
+
+# Faixa de frequência cardíaca: 0.7 Hz (42 bpm) a 4.0 Hz (240 bpm)
+HR_FREQ_LOW = 0.7
+HR_FREQ_HIGH = 4.0
+SNR_MIN_THRESHOLD = -15.0  # dB - abaixo disso o sinal é considerado instável
+
+
+def calc_snr(bvp, fs):
+    """Calcula SNR do sinal BVP na faixa cardíaca."""
+    freqs = np.fft.rfftfreq(len(bvp), d=1.0 / fs)
+    fft_mag = np.abs(np.fft.rfft(bvp))
+    mask = (freqs >= HR_FREQ_LOW) & (freqs <= HR_FREQ_HIGH)
+    if not np.any(mask):
+        return -np.inf
+    peak_power = np.max(fft_mag[mask]) ** 2
+    total_power = np.sum(fft_mag[mask] ** 2)
+    noise_power = total_power - peak_power
+    if noise_power <= 0:
+        return 0
+    return 10 * np.log10(peak_power / noise_power)
 
 
 def extract_bvp(frames, fps):
@@ -117,36 +158,37 @@ def extract_bvp(frames, fps):
     bvp_pos = np.squeeze(POS_WANG(frames, fps))
     bvp_chrom = np.squeeze(CHROME_DEHAAN(frames, fps))
 
-    # Calcula SNR de cada um para escolher o melhor
-    def calc_snr(bvp, fs):
-        freqs = np.fft.rfftfreq(len(bvp), d=1.0 / fs)
-        fft_mag = np.abs(np.fft.rfft(bvp))
-        mask = (freqs >= 0.75) & (freqs <= 3.0)
-        if not np.any(mask):
-            return -np.inf
-        peak_power = np.max(fft_mag[mask]) ** 2
-        total_power = np.sum(fft_mag[mask] ** 2)
-        noise_power = total_power - peak_power
-        if noise_power <= 0:
-            return 0
-        return 10 * np.log10(peak_power / noise_power)
-
     snr_pos = calc_snr(bvp_pos, fps)
     snr_chrom = calc_snr(bvp_chrom, fps)
+    best_snr = max(snr_pos, snr_chrom)
+
+    # Alerta de sinal instável
+    signal_quality = "OK"
+    if best_snr < SNR_MIN_THRESHOLD:
+        signal_quality = "INSTAVEL"
+        print(f"  AVISO: Sinal instavel (SNR: {best_snr:.1f} dB < {SNR_MIN_THRESHOLD} dB)")
+        print(f"  Possivel causa: movimento excessivo ou iluminacao insuficiente")
 
     if snr_pos >= snr_chrom:
         print(f"  Metodo selecionado: POS (SNR: {snr_pos:.1f} dB)")
-        return bvp_pos, "POS", bvp_chrom
+        return bvp_pos, "POS", signal_quality
     else:
         print(f"  Metodo selecionado: CHROM (SNR: {snr_chrom:.1f} dB)")
-        return bvp_chrom, "CHROM", bvp_pos
+        return bvp_chrom, "CHROM", signal_quality
 
 
 def estimate_hr(bvp, fps):
-    """Estima HR via FFT."""
-    freqs = np.fft.rfftfreq(len(bvp), d=1.0 / fps)
-    fft_mag = np.abs(np.fft.rfft(bvp))
-    mask = (freqs >= 0.75) & (freqs <= 3.0)
+    """Estima HR via FFT com filtro de banda estrita [0.7-4.0 Hz]."""
+    # Aplica filtro passa-faixa estrito antes da FFT
+    nyq = fps / 2
+    low = HR_FREQ_LOW / nyq
+    high = min(HR_FREQ_HIGH / nyq, 0.99)
+    b, a = scipy_signal.butter(3, [low, high], btype='bandpass')
+    bvp_filtered = scipy_signal.filtfilt(b, a, bvp.astype(np.double))
+
+    freqs = np.fft.rfftfreq(len(bvp_filtered), d=1.0 / fps)
+    fft_mag = np.abs(np.fft.rfft(bvp_filtered))
+    mask = (freqs >= HR_FREQ_LOW) & (freqs <= HR_FREQ_HIGH)
     if not np.any(mask):
         return 0.0, freqs, fft_mag
     peak_freq = freqs[mask][np.argmax(fft_mag[mask])]
@@ -565,12 +607,14 @@ def main():
 
     # 2. Extração BVP
     print(f"\n[2/5] Extraindo sinal de pulso ({len(frames)} frames, {len(frames)/fps:.1f}s)...")
-    bvp, method_name, _ = extract_bvp(frames, fps)
+    bvp, method_name, signal_quality = extract_bvp(frames, fps)
 
     # 3. Frequência cardíaca
     print("\n[3/5] Calculando frequencia cardiaca...")
     hr, _, _ = estimate_hr(bvp, fps)
     print(f"  HR: {hr:.0f} bpm")
+    if signal_quality == "INSTAVEL":
+        print(f"  *** SINAL INSTAVEL - valor pode nao ser confiavel ***")
 
     # 4. HRV
     print("\n[4/5] Analisando variabilidade cardiaca (HRV)...")
@@ -616,6 +660,8 @@ def main():
     if emotion_data:
         print(f"  Emocao Dominante:       {emotion_data['dominant_pt']}")
     print(f"  Score de Bem-Estar:     {wellbeing}/100")
+    if signal_quality == "INSTAVEL":
+        print(f"  *** ATENCAO: Sinal instavel - repita com melhor iluminacao/estabilidade ***")
     print("=" * 60)
 
     # Gera dashboard e exporta CSV
