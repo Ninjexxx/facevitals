@@ -10,157 +10,158 @@
 
 <p align="center">
   <strong>Non-contact health monitoring via camera</strong><br>
-  Extracts heart rate, HRV, respiratory rate, stress level and facial emotion from video<br>
+  Extracts heart rate, HRV, respiratory rate, stress level and dominant facial emotion from video<br>
   using remote photoplethysmography (rPPG). No GPU required.
 </p>
 
 <p align="center">
-  <em>🇧🇷 Output em português — projeto em testes internos na <a href="https://namu.com.br">Namu</a></em>
+  🇧🇷 Currently under internal testing at <a href="https://namu.com.br">Namu</a> — a Brazilian health & wellness platform.<br>
+  All output (terminal, dashboard, CSV) is in <strong>Brazilian Portuguese (pt-BR)</strong> by design.
 </p>
 
 ---
 
-## 🧐 O que é?
+## 🧐 What is this?
 
-FaceVitals extrai dados de saúde analisando micro-variações de cor na pele do rosto capturadas por uma câmera comum. A cada batimento cardíaco, o fluxo sanguíneo altera microscopicamente a cor da pele — invisível a olho nu, mas detectável pela câmera.
+FaceVitals extracts health data by analyzing micro-variations in skin color captured by a regular camera. With each heartbeat, blood flow subtly changes the skin's color — invisible to the naked eye, but detectable by the camera.
 
-**Sem sensores. Sem contato. Sem GPU. Sem API Key.**
+**No sensors. No contact. No GPU. No API Keys. No external services.**
 
 ```
-Câmera → Frames → Detecção facial → ROI 72x72
-                                        ↓
-                              Média RGB por frame
-                                        ↓
-                              POS / CHROM (sinal BVP)
-                                        ↓
-                    ┌───────────┬────────────┬──────────────┐
-                    FFT→HR    Picos→HRV    Envelope→Resp   FER→Emoção
-                    └───────────┴────────────┴──────────────┘
-                                        ↓
-                              Score de Bem-Estar
-                                        ↓
-                           Dashboard PNG + CSV
+Camera → Frames → Face detection → ROI 72x72
+                                       ↓
+                             Mean RGB per frame
+                                       ↓
+                             POS / CHROM (BVP signal)
+                                       ↓
+                   ┌───────────┬────────────┬──────────────┐
+                   FFT→HR    Peaks→HRV   Envelope→Resp   FER→Emotion
+                   └───────────┴────────────┴──────────────┘
+                                       ↓
+                             Wellbeing Score
+                                       ↓
+                          Dashboard PNG + CSV
 ```
 
 ---
 
-## 📊 O que extrai
+## 📊 What it extracts
 
-| Indicador | Descrição | Precisão (CPU) |
-|-----------|-----------|:--------------:|
-| 💓 Frequência Cardíaca (HR) | Batimentos por minuto | ±0-5 bpm |
-| 📈 HRV (SDNN / RMSSD) | Variabilidade cardíaca | Moderada |
-| 🌬️ Frequência Respiratória | Respirações por minuto | Estimativa |
-| 🧠 Nível de Estresse (1-5) | Baseado em HRV (RMSSD, SDNN, LF/HF) | Moderada |
-| 😐 Emoção Dominante | Expressão facial predominante | Complementar |
-| ⭐ Score de Bem-Estar (0-100) | Combinação dos indicadores | Indicativo |
+| Indicator | Description | Accuracy (CPU) |
+|-----------|-------------|:--------------:|
+| 💓 Heart Rate (HR) | Beats per minute | ±0-5 bpm |
+| 📈 HRV (SDNN / RMSSD) | Heart rate variability | Moderate |
+| 🌬️ Respiratory Rate | Breaths per minute | Estimate |
+| 🧠 Stress Level (1-5) | Based on HRV (RMSSD, SDNN, LF/HF) | Moderate |
+| 😐 Dominant Emotion | Predominant facial expression | Complementary |
+| ⭐ Wellbeing Score (0-100) | Combined health indicators | Indicative |
 
 ---
 
-## ✅ Resultados validados
+## ✅ Validated results
 
-Teste com vídeo gravado no celular (boa iluminação), comparado com **VitalScan (Namu)** e **smartwatch Samsung**:
+Tested with a cellphone-recorded video (good lighting), compared against **VitalScan (Namu)** and **Samsung smartwatch**:
 
-| Indicador | FaceVitals | VitalScan | Smartwatch |
+| Indicator | FaceVitals | VitalScan | Smartwatch |
 |-----------|:----------:|:---------:|:----------:|
 | HR | **81 bpm** | 81 bpm | 84 bpm |
-| Estresse | **2 (Baixo)** | 2 | — |
+| Stress | **2 (Low)** | 2 | — |
 | HRV (SDNN) | 61 ms | 94 ms | — |
 
-> HR bateu **exatamente** com o VitalScan e estresse também. HRV tem margem de melhoria com GPU.
+> HR matched **exactly** with VitalScan. Stress level also matched. HRV has room for improvement with GPU-based neural methods.
 
 ---
 
-## ⚡ Início rápido
+## ⚡ Quick start
 
-### Pré-requisitos
+### Requirements
 
 - Python 3.11+
-- Webcam ou câmera de celular
-- **Não precisa de GPU**
-- **Não precisa de API Key**
-- **Não precisa de conta em nenhum serviço**
+- Webcam or cellphone camera
+- **No GPU required**
+- **No API Key required**
+- **No account on any service required**
 
-### Instalação
+### Installation
 
 ```bash
-# Clone o repositório
-git clone https://github.com/seu-usuario/facevitals.git
+# Clone the repository
+git clone https://github.com/Ninjexxx/facevitals.git
 cd facevitals
 
-# Crie o ambiente virtual
+# Create virtual environment
 python -m venv venv
 
-# Ative (Windows)
+# Activate (Windows)
 venv\Scripts\activate
 
-# Ative (Linux/Mac)
+# Activate (Linux/Mac)
 source venv/bin/activate
 
-# Atualize pip
+# Upgrade pip
 python -m pip install --upgrade pip setuptools wheel
 
-# Instale PyTorch (CPU)
+# Install PyTorch (CPU)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
-# Instale as dependências
+# Install dependencies
 pip install -r requirements_cpu.txt
 
-# Instale o FER (detecção de emoções)
+# Install FER (facial emotion detection)
 pip install fer
 ```
 
 ---
 
-## 🎬 Como usar
+## 🎬 How to use
 
 ### Input
 
-FaceVitals aceita **3 tipos de entrada**:
+FaceVitals accepts **3 input types**:
 
-#### 1. 📹 Vídeo gravado no celular (recomendado)
+#### 1. 📹 Cellphone-recorded video (recommended)
 
-A melhor qualidade. Grave um vídeo selfie de 30+ segundos com boa iluminação e transfira para o computador.
+Best quality. Record a 30+ second selfie video with good lighting and transfer it to your computer.
 
 ```bash
-python mvp_rppg_v2.py --video meu_video.mp4
+python mvp_rppg_v2.py --video my_video.mp4
 ```
 
-#### 2. 💻 Webcam do notebook
+#### 2. 💻 Laptop webcam
 
-Abre a câmera, mostra o preview com detecção facial em tempo real e captura por 30 segundos (ou o tempo que definir).
+Opens the camera, shows a live preview with face detection, and captures for 30 seconds (or custom duration).
 
 ```bash
 python mvp_rppg_v2.py --duration 30
 ```
 
-#### 3. 📱 Câmera do celular como webcam
+#### 3. 📱 Cellphone as webcam
 
-Usando apps como DroidCam ou Iriun Webcam. Selecione a câmera pelo índice.
+Using apps like DroidCam or Iriun Webcam. Select the camera by index.
 
 ```bash
-# Liste as câmeras disponíveis e use o índice correto
+# Use the correct camera index
 python mvp_rppg_v2.py --camera 1 --duration 30
 ```
 
-> **Nota:** vídeo gravado direto no celular > DroidCam > webcam (em qualidade de resultado)
+> **Quality ranking:** recorded video > DroidCam/streaming > laptop webcam
 
-### Parâmetros
+### Parameters
 
-| Parâmetro | Descrição | Padrão |
-|-----------|-----------|--------|
-| `--video` | Caminho do arquivo de vídeo | — |
-| `--camera` | Índice da câmera (0, 1, 2...) | 0 |
-| `--duration` | Duração da captura em segundos | 30 |
-| `--output` | Nome do arquivo de saída | dashboard_saude.png |
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `--video` | Path to video file | — |
+| `--camera` | Camera index (0, 1, 2...) | 0 |
+| `--duration` | Capture duration in seconds | 30 |
+| `--output` | Output file name | dashboard_saude.png |
 
 ---
 
 ## 📤 Output
 
-Todos os resultados são gerados **em português**.
+> **🇧🇷 All output is in Brazilian Portuguese (pt-BR)** — terminal messages, dashboard labels, CSV headers, and status descriptions are in Portuguese. This is intentional, as FaceVitals is being developed and tested at [Namu](https://namu.com.br), a Brazilian company.
 
-### 1. Terminal — Resumo em tempo real
+### 1. Terminal — Real-time summary (pt-BR)
 
 ```
 ============================================================
@@ -176,22 +177,22 @@ Todos os resultados são gerados **em português**.
 ============================================================
 ```
 
-### 2. Dashboard visual — `dashboard_saude.png`
+### 2. Visual dashboard — `dashboard_saude.png`
 
-Gráfico completo com:
-- Painel de resumo dos indicadores
-- Sinal BVP (pulso sanguíneo) com batimentos marcados
-- Espectro de frequência cardíaca
-- Sinal respiratório
-- Intervalos entre batimentos (IBI)
-- Indicadores de estresse e emoção
-- Score de bem-estar
+A comprehensive chart (in pt-BR) including:
+- Summary panel with all indicators
+- BVP signal (blood volume pulse) with detected heartbeats
+- Heart rate frequency spectrum
+- Respiratory signal
+- Inter-beat intervals (IBI)
+- Stress and emotion indicators
+- Wellbeing score
 
-### 3. Dados exportados — `dashboard_saude.csv`
+### 3. Exported data — `dashboard_saude.csv`
 
-CSV com histórico de todas as medições, ideal para acompanhamento ao longo do tempo. Cada execução adiciona uma nova linha.
+CSV with measurement history (headers in pt-BR). Each run appends a new row.
 
-| Coluna | Exemplo |
+| Column | Example |
 |--------|---------|
 | timestamp | 2026-03-27T11:16:02 |
 | method | CHROM |
@@ -205,108 +206,106 @@ CSV com histórico de todas as medições, ideal para acompanhamento ao longo do
 
 ---
 
-## 🔬 Como funciona (técnico)
+## 🔬 How it works
 
-### Extração de sinais vitais
+### Vital signs extraction
 
-1. **Detecção facial** — Haar Cascade (OpenCV) localiza o rosto em cada frame
-2. **ROI** — Recorta e redimensiona para 72x72 pixels
-3. **Sinal RGB** — Calcula a média dos canais R, G, B de cada frame
-4. **Algoritmos rPPG** — POS e CHROM processam o sinal RGB para isolar o pulso sanguíneo (BVP)
-5. **Seleção automática** — Compara SNR dos dois métodos e usa o melhor
+1. **Face detection** — Haar Cascade (OpenCV) locates the face in each frame
+2. **ROI** — Crops and resizes to 72x72 pixels
+3. **RGB signal** — Computes the mean R, G, B values per frame
+4. **rPPG algorithms** — POS and CHROM process the RGB signal to isolate the blood volume pulse (BVP)
+5. **Auto-selection** — Compares SNR of both methods and uses the best one
 
-### Indicadores derivados
+### Derived indicators
 
-| Indicador | Método |
+| Indicator | Method |
 |-----------|--------|
-| HR | FFT no sinal BVP → pico na faixa 0.75-3.0 Hz |
-| HRV | NeuroKit2 detecta picos → intervalos IBI → SDNN, RMSSD, pNN50, LF/HF |
-| Respiração | Transformada de Hilbert → envelope do BVP → FFT na faixa 0.1-0.5 Hz |
-| Estresse | Heurística clínica baseada em RMSSD, SDNN e razão LF/HF |
-| Emoção | FER (TensorFlow Lite) classifica expressão facial em 1 frame/segundo |
+| HR | FFT on BVP signal → peak in 0.75-3.0 Hz range |
+| HRV | NeuroKit2 peak detection → IBI intervals → SDNN, RMSSD, pNN50, LF/HF |
+| Respiratory Rate | Hilbert transform → BVP envelope → FFT in 0.1-0.5 Hz range |
+| Stress | Clinical heuristic based on RMSSD, SDNN, and LF/HF ratio |
+| Emotion | FER (TensorFlow Lite) classifies facial expression at 1 frame/second |
 
-### Algoritmos de referência
+### Reference algorithms
 
-- **POS** — Wang et al., 2016 — Projeção ortogonal dos canais RGB
-- **CHROM** — De Haan et al., 2013 — Modelo de crominância
-- **NeuroKit2** — Makowski et al., 2021 — Processamento de sinais fisiológicos
-- **FER** — Detecção de emoções faciais via TensorFlow Lite
-
----
-
-## 💡 Dicas para melhores resultados
-
-| Dica | Por quê |
-|------|---------|
-| ☀️ Boa iluminação (luz natural) | Mais luz = mais sinal = menos ruído |
-| 🧍 Fique parado | Movimento gera artefatos no sinal |
-| 📏 ~50cm de distância | Rosto precisa ocupar boa parte do frame |
-| ⏱️ Mínimo 30 segundos | Mais tempo = mais ciclos cardíacos = mais precisão |
-| 📱 Grave no celular | Câmera do celular > streaming > webcam |
-| 🚫 Evite óculos escuros | Reduz a área de pele visível |
+- **POS** — Wang et al., 2016 — Orthogonal projection of RGB channels
+- **CHROM** — De Haan et al., 2013 — Chrominance-based model
+- **NeuroKit2** — Makowski et al., 2021 — Physiological signal processing
+- **FER** — Facial emotion recognition via TensorFlow Lite
 
 ---
 
-## 📁 Estrutura do projeto
+## 💡 Tips for best results
+
+| Tip | Why |
+|-----|-----|
+| ☀️ Good lighting (natural light) | More light = stronger signal = less noise |
+| 🧍 Stay still | Movement creates artifacts in the signal |
+| 📏 ~50cm distance | Face should fill a good portion of the frame |
+| ⏱️ Minimum 30 seconds | More time = more cardiac cycles = better accuracy |
+| 📱 Record on cellphone | Cellphone camera > streaming > webcam |
+| 🚫 Avoid sunglasses | Reduces visible skin area |
+
+---
+
+## 📁 Project structure
 
 ```
 facevitals/
-├── mvp_rppg.py              # MVP v1 (só HR, 3 métodos)
-├── mvp_rppg_v2.py           # MVP v2 (HR + HRV + Resp + Estresse + Emoção)
-├── requirements_cpu.txt      # Dependências para CPU
-├── dashboard_saude.png       # Último dashboard gerado
-├── dashboard_saude.csv       # Histórico de medições
-├── configs/                  # Configurações YAML
-├── unsupervised_methods/     # Algoritmos POS, CHROM, GREEN, etc.
-├── neural_methods/           # Modelos neurais (requer GPU)
-├── dataset/                  # Data loaders
-└── evaluation/               # Métricas e pós-processamento
+├── mvp_rppg.py              # MVP v1 (HR only, 3 methods)
+├── mvp_rppg_v2.py           # MVP v2 (HR + HRV + Resp + Stress + Emotion)
+├── requirements_cpu.txt      # CPU dependencies
+├── dashboard_saude.png       # Last generated dashboard
+├── dashboard_saude.csv       # Measurement history
+└── unsupervised_methods/     # POS, CHROM, GREEN algorithms
 ```
 
----
-
-## 🚀 Roadmap — Evolução com GPU
-
-Com uma GPU (NVIDIA T4 ou RTX 3060+), o projeto pode evoluir para:
-
-| Funcionalidade | Status | Requer |
-|---------------|:------:|--------|
-| Frequência Cardíaca | ✅ Implementado | CPU |
-| HRV (SDNN, RMSSD) | ✅ Implementado | CPU |
-| Frequência Respiratória | ✅ Implementado | CPU |
-| Nível de Estresse | ✅ Implementado | CPU |
-| Emoção Dominante | ✅ Implementado | CPU |
-| Score de Bem-Estar | ✅ Implementado | CPU |
-| Pressão Arterial | 🔜 Planejado | GPU + BP4D+ |
-| SpO2 (Saturação O₂) | 🔜 Planejado | GPU |
-| HR ±1-2 bpm (neural) | 🔜 Planejado | GPU |
-| HRV de alta fidelidade | 🔜 Planejado | GPU |
-| Detecção facial YOLO5Face | 🔜 Planejado | GPU |
+> **Note on language in source code:** Print statements, dashboard labels, and user-facing strings in the Python files are written in Portuguese (pt-BR). Code comments and docstrings are mixed. This is by design for the Brazilian end-user experience.
 
 ---
 
-## ⚠️ Limitações
+## 🚀 Roadmap — GPU evolution
 
-- 🏥 **Dados experimentais** — não substituem avaliações médicas profissionais
-- 💡 Iluminação ruim degrada significativamente os resultados
-- 😐 Emoção facial é complementar (expressões neutras podem ser classificadas como "triste")
-- ⏱️ Mínimo 30 segundos de vídeo para resultados confiáveis
-- 🩸 Pressão arterial e SpO2 requerem GPU + modelos treinados
+With a GPU (NVIDIA T4 or RTX 3060+), the project can evolve to include:
+
+| Feature | Status | Requires |
+|---------|:------:|----------|
+| Heart Rate (HR) | ✅ Implemented | CPU |
+| HRV (SDNN, RMSSD) | ✅ Implemented | CPU |
+| Respiratory Rate | ✅ Implemented | CPU |
+| Stress Level | ✅ Implemented | CPU |
+| Dominant Emotion | ✅ Implemented | CPU |
+| Wellbeing Score | ✅ Implemented | CPU |
+| Blood Pressure | 🔜 Planned | GPU + BP4D+ dataset |
+| SpO2 (Oxygen Saturation) | 🔜 Planned | GPU |
+| HR ±1-2 bpm (neural) | 🔜 Planned | GPU |
+| High-fidelity HRV | 🔜 Planned | GPU |
+| YOLO5Face detection | 🔜 Planned | GPU |
 
 ---
 
-## 🏢 Sobre
+## ⚠️ Limitations
 
-Projeto em **testes internos na [Namu](https://namu.com.br)** — plataforma brasileira de saúde e bem-estar.
-
-- 🔓 **Open source** — sem API Keys, sem contas, sem dependências externas de serviços
-- 🇧🇷 **Output em português** — dashboard, terminal e CSV em pt-BR
-- 💻 **Roda em qualquer computador** — sem necessidade de GPU
-- 📦 **Self-contained** — tudo roda localmente na sua máquina
+- 🏥 **Experimental data** — does not replace professional medical evaluations
+- 💡 Poor lighting significantly degrades results
+- 😐 Facial emotion is complementary (neutral expressions are often classified as "sad")
+- ⏱️ Minimum 30 seconds of video for reliable results
+- 🩸 Blood pressure and SpO2 require GPU + trained models
 
 ---
 
-## 📚 Referências
+## 🏢 About
+
+This project is under **internal testing at [Namu](https://namu.com.br)** — a Brazilian health and wellness platform.
+
+- 🔓 **Open source** — no API Keys, no accounts, no external service dependencies
+- 🇧🇷 **Output in Portuguese (pt-BR)** — dashboard, terminal, and CSV are in Brazilian Portuguese
+- 💻 **Runs on any computer** — no GPU needed
+- 📦 **Self-contained** — everything runs locally on your machine
+
+---
+
+## 📚 References
 
 - [rPPG-Toolbox](https://github.com/ubicomplab/rPPG-Toolbox) — Liu et al., 2022
 - [POS - Algorithmic Principles of Remote PPG](https://ieeexplore.ieee.org/document/7565547) — Wang et al., 2016
@@ -317,5 +316,5 @@ Projeto em **testes internos na [Namu](https://namu.com.br)** — plataforma bra
 ---
 
 <p align="center">
-  Feito com 🫀 por <a href="https://namu.com.br">Namu</a>
+  Made with 🫀 by <a href="https://namu.com.br">Namu</a>
 </p>
