@@ -16,7 +16,7 @@
 
 <p align="center">
   🇧🇷 Currently under internal testing at <a href="https://namu.com.br">Namu</a> — a Brazilian health & wellness platform.<br>
-  All output (terminal, dashboard, CSV) is in <strong>Brazilian Portuguese (pt-BR)</strong> by design.
+  All output (terminal, dashboard, CSV) and parts of the source code are in <strong>Brazilian Portuguese (pt-BR)</strong> by design.
 </p>
 
 ---
@@ -28,19 +28,19 @@ FaceVitals extracts health data by analyzing micro-variations in skin color capt
 **No sensors. No contact. No GPU. No API Keys. No external services.**
 
 ```
-Camera → Frames → Face detection → ROI 72x72
-                                       ↓
-                             Mean RGB per frame
-                                       ↓
-                             POS / CHROM (BVP signal)
-                                       ↓
-                   ┌───────────┬────────────┬──────────────┐
-                   FFT→HR    Peaks→HRV   Envelope→Resp   FER→Emotion
-                   └───────────┴────────────┴──────────────┘
-                                       ↓
-                             Wellbeing Score
-                                       ↓
-                          Dashboard PNG + CSV
+Camera → Frames → Moondream pre-validation → Face detection → ROI 72x72
+                                                                  ↓
+                                                        Mean RGB per frame
+                                                                  ↓
+                                                        POS / CHROM (BVP signal)
+                                                                  ↓
+                                          ┌───────────┬────────────┬──────────────┐
+                                          FFT→HR    Peaks→HRV   Envelope→Resp   FER→Emotion
+                                          └───────────┴────────────┴──────────────┘
+                                                                  ↓
+                                                        Wellbeing Score
+                                                                  ↓
+                                                     Dashboard PNG + CSV
 ```
 
 ---
@@ -55,6 +55,23 @@ Camera → Frames → Face detection → ROI 72x72
 | 🧠 Stress Level (1-5) | Based on HRV (RMSSD, SDNN, LF/HF) | Moderate |
 | 😐 Dominant Emotion | Predominant facial expression | Complementary |
 | ⭐ Wellbeing Score (0-100) | Combined health indicators | Indicative |
+
+---
+
+## 🔍 Smart pre-validation (Moondream)
+
+Before processing the video, FaceVitals uses [Moondream2](https://github.com/vikhyat/moondream) — a small vision-language model (~1.9B parameters) — to analyze the first frame and validate capture conditions **before** spending time on the full rPPG pipeline.
+
+| Check | Weight | Blocking? |
+|-------|:------:|:---------:|
+| 👤 Face clearly visible | 40 | ✅ Yes |
+| ☀️ Good lighting | 25 | No |
+| 🕶️ No sunglasses/mask | 20 | No |
+| 📏 Face close enough | 15 | No |
+
+The model runs **100% locally** (no API key, no internet after first download), using ~1.8GB of RAM (float16). On the first run, it downloads the model weights (~3.6GB) from Hugging Face — this is cached for subsequent runs.
+
+If Moondream is not installed or fails to load, the pipeline continues normally without pre-validation. You can also skip it explicitly with `--skip-validation`.
 
 ---
 
@@ -78,6 +95,7 @@ Tested with a cellphone-recorded video (good lighting), compared against **Vital
 
 - Python 3.11+
 - Webcam or cellphone camera
+- **8GB+ RAM recommended** (for Moondream pre-validation; 4GB minimum without it)
 - **No GPU required**
 - **No API Key required**
 - **No account on any service required**
@@ -106,9 +124,6 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 # Install dependencies
 pip install -r requirements_cpu.txt
-
-# Install FER (facial emotion detection)
-pip install fer
 ```
 
 ---
@@ -154,6 +169,8 @@ python mvp_rppg_v2.py --camera 1 --duration 30
 | `--camera` | Camera index (0, 1, 2...) | 0 |
 | `--duration` | Capture duration in seconds | 30 |
 | `--output` | Output file name | dashboard_saude.png |
+| `--skip-validation` | Skip Moondream pre-validation | off |
+| `--strict` | Block execution if quality score < 60 | off |
 
 ---
 
@@ -164,6 +181,16 @@ python mvp_rppg_v2.py --camera 1 --duration 30
 ### 1. Terminal — Real-time summary (pt-BR)
 
 ```
+============================================================
+  MVP v2 - Extracao de Dados de Saude via rPPG
+============================================================
+
+[0] Pre-validacao de qualidade (Moondream)...
+  Qualidade da captura: 100/100 (OTIMO)
+
+[1/5] Capturando video...
+  ...
+
 ============================================================
   RESUMO DE SAUDE
 ============================================================
@@ -208,6 +235,10 @@ CSV with measurement history (headers in pt-BR). Each run appends a new row.
 
 ## 🔬 How it works
 
+### Pre-validation (Moondream)
+
+Before any processing, the first frame is analyzed by [Moondream2](https://github.com/vikhyat/moondream) — a small vision-language model that runs locally on CPU. It answers yes/no questions about the frame to validate capture conditions (face visible, lighting, obstructions, distance). This prevents wasting time processing a video that would yield poor results.
+
 ### Vital signs extraction
 
 1. **Face detection** — Haar Cascade (OpenCV) locates the face in each frame
@@ -232,6 +263,7 @@ CSV with measurement history (headers in pt-BR). Each run appends a new row.
 - **CHROM** — De Haan et al., 2013 — Chrominance-based model
 - **NeuroKit2** — Makowski et al., 2021 — Physiological signal processing
 - **FER** — Facial emotion recognition via TensorFlow Lite
+- **Moondream2** — Vikhyat Sharma — Vision-language model for frame pre-validation
 
 ---
 
@@ -254,13 +286,14 @@ CSV with measurement history (headers in pt-BR). Each run appends a new row.
 facevitals/
 ├── mvp_rppg.py              # MVP v1 (HR only, 3 methods)
 ├── mvp_rppg_v2.py           # MVP v2 (HR + HRV + Resp + Stress + Emotion)
+├── pre_validation.py         # Moondream pre-validation module
 ├── requirements_cpu.txt      # CPU dependencies
 ├── dashboard_saude.png       # Last generated dashboard
 ├── dashboard_saude.csv       # Measurement history
 └── unsupervised_methods/     # POS, CHROM, GREEN algorithms
 ```
 
-> **Note on language in source code:** Print statements, dashboard labels, and user-facing strings in the Python files are written in Portuguese (pt-BR). Code comments and docstrings are mixed. This is by design for the Brazilian end-user experience.
+> **Note on language in source code:** Variable names, function names, print statements, dashboard labels, comments, and user-facing strings in the Python files are written in Portuguese (pt-BR) or a mix of Portuguese and English. This is by design for the Brazilian end-user experience at [Namu](https://namu.com.br).
 
 ---
 
@@ -276,6 +309,7 @@ With a GPU (NVIDIA T4 or RTX 3060+), the project can evolve to include:
 | Stress Level | ✅ Implemented | CPU |
 | Dominant Emotion | ✅ Implemented | CPU |
 | Wellbeing Score | ✅ Implemented | CPU |
+| Moondream Pre-validation | ✅ Implemented | CPU (8GB+ RAM) |
 | Blood Pressure | 🔜 Planned | GPU + BP4D+ dataset |
 | SpO2 (Oxygen Saturation) | 🔜 Planned | GPU |
 | HR ±1-2 bpm (neural) | 🔜 Planned | GPU |
@@ -291,6 +325,7 @@ With a GPU (NVIDIA T4 or RTX 3060+), the project can evolve to include:
 - 😐 Facial emotion is complementary (neutral expressions are often classified as "sad")
 - ⏱️ Minimum 30 seconds of video for reliable results
 - 🩸 Blood pressure and SpO2 require GPU + trained models
+- 🧠 Moondream pre-validation requires ~8GB RAM (can be skipped with `--skip-validation`)
 
 ---
 
@@ -299,7 +334,7 @@ With a GPU (NVIDIA T4 or RTX 3060+), the project can evolve to include:
 This project is under **internal testing at [Namu](https://namu.com.br)** — a Brazilian health and wellness platform.
 
 - 🔓 **Open source** — no API Keys, no accounts, no external service dependencies
-- 🇧🇷 **Output in Portuguese (pt-BR)** — dashboard, terminal, and CSV are in Brazilian Portuguese
+- 🇧🇷 **Portuguese (pt-BR)** — output, dashboard, CSV, and parts of the source code are in Brazilian Portuguese
 - 💻 **Runs on any computer** — no GPU needed
 - 📦 **Self-contained** — everything runs locally on your machine
 
@@ -312,6 +347,7 @@ This project is under **internal testing at [Namu](https://namu.com.br)** — a 
 - [CHROM - Robust Pulse Rate from Chrominance-based rPPG](https://ieeexplore.ieee.org/document/6523142) — De Haan et al., 2013
 - [NeuroKit2](https://github.com/neuropsychology/NeuroKit) — Makowski et al., 2021
 - [FER - Facial Expression Recognition](https://github.com/justinshenk/fer)
+- [Moondream2](https://github.com/vikhyat/moondream) — Vikhyat Sharma — Vision-language model
 
 ---
 

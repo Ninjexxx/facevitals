@@ -30,11 +30,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from unsupervised_methods.methods.POS_WANG import POS_WANG
 from unsupervised_methods.methods.CHROME_DEHAAN import CHROME_DEHAAN
 from fer.fer import FER
+from pre_validation import validate_frame, print_validation_result
 
 
 def detect_face(frame, face_cascade):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+    faces = face_cascade.detectMultiScale(gray, 1.1, 3, minSize=(30, 30))
     if len(faces) == 0:
         return None, None
     x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
@@ -590,6 +591,8 @@ def main():
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--duration", type=int, default=30)
     parser.add_argument("--output", type=str, default="dashboard_saude.png")
+    parser.add_argument("--skip-validation", action="store_true", help="Pula pre-validacao Moondream")
+    parser.add_argument("--strict", action="store_true", help="Modo estrito: bloqueia se qualidade < 60")
     args = parser.parse_args()
 
     source = args.video if args.video else args.camera
@@ -597,6 +600,17 @@ def main():
     print("=" * 60)
     print("  MVP v2 - Extracao de Dados de Saude via rPPG")
     print("=" * 60)
+
+    # 0. Pre-validacao (Moondream)
+    if not args.skip_validation:
+        print("\n[0] Pre-validacao de qualidade (Moondream)...")
+        validation = validate_frame(source, strict=args.strict)
+        print_validation_result(validation)
+        if not validation["should_proceed"]:
+            print("\nAbortando. Use --skip-validation para ignorar.")
+            return
+    else:
+        print("\n[0] Pre-validacao ignorada (--skip-validation)")
 
     # 1. Captura
     print("\n[1/5] Capturando video...")

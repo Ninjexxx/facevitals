@@ -21,3 +21,7 @@ thop
 torch
 torchvision
 torchaudio
+fer
+einops
+transformers==4.44.0
+accelerate
