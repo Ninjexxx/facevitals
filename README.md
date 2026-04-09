@@ -352,5 +352,5 @@ This project is under **internal testing at [Namu](https://namu.com.br)** — a 
 ---
 
 <p align="center">
-  Made with 🫀 by <a href="https://namu.com.br">Namu</a>
+  Made with 🫀 by Arthur Santos
 </p>
